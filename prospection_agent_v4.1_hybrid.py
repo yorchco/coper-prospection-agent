@@ -1,20 +1,6 @@
 """
-PROSPECCIÓN_AGENT v4.1 — HYBRID MULTI-SOURCE
-Busca candidatos COPER en 5 fuentes simultáneamente:
-1. Web Search + HTML Parsing (sitios profesionales)
-2. Houzz scraping (diseñadores + interioristas)
-3. Directorios locales (Páginas Amarillas, etc)
-4. Búsqueda web con regex (emails + teléfonos)
-5. SEED DATA TEMPORAL (garantiza candidatos mientras calibramos scraping)
-
-COLUMNAS NOTION ACTUALIZADAS (Mayo 2026):
-- CLIENTE (Title)
-- Email (Email)
-- Teléfono (Phone Number) — NUEVO
-- Sector (Select)
-- Nivel (Select)
-- Cliente valido COPER (Checkbox)
-- Notas (Text)
+PROSPECCIÓN_AGENT v4.1 — HYBRID MULTI-SOURCE (FIXED)
+Versión corregida: API Notion lista para producción.
 """
 
 import os
@@ -26,18 +12,15 @@ import requests
 from bs4 import BeautifulSoup
 import time
 
-# CONFIGURACIÓN
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 HUBSPOT_API_KEY = os.getenv("HUBSPOT_API_KEY")
 NOTION_DATABASE_ID = "34247570-dee5-80b0-89a4-000b3f770c3b"
 MODE = os.getenv("MODE", "search")
 
-# Headers para web scraping
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
-# FUENTES DE BÚSQUEDA
 SEARCH_KEYWORDS = [
     "arquitecto Guadalajara diseño",
     "despacho arquitectura Jalisco",
@@ -248,27 +231,72 @@ def source_verified_seed() -> List[Dict]:
     return candidates
 
 def create_notion_candidate(candidate: Dict) -> bool:
-    """Crea candidato en Notion con columnas correctas."""
+    """Crea candidato en Notion. VERSIÓN CORREGIDA."""
+    if not NOTION_TOKEN:
+        print("    ERROR: NOTION_TOKEN no configurado")
+        return False
+    
     headers = {
         "Authorization": f"Bearer {NOTION_TOKEN}",
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
     
-    properties = {
-        "CLIENTE": {"title": [{"text": {"content": candidate.get("CLIENTE", "Unknown")}}]},
-        "Email": {"email": candidate.get("Email")},
-        "Teléfono": {"phone_number": candidate.get("Teléfono")},
-        "Sector": {"select": {"name": candidate.get("Sector", "Otro")}},
-        "Notas": {"rich_text": [{"text": {"content": candidate.get("Notas", "")}}]},
-    }
-    
-    payload = {
-        "parent": {"database_id": NOTION_DATABASE_ID},
-        "properties": properties
-    }
-    
     try:
+        # Construye el payload SIN campos None
+        properties = {
+            "CLIENTE": {
+                "title": [
+                    {
+                        "type": "text",
+                        "text": {
+                            "content": candidate.get("CLIENTE", "Unknown")
+                        }
+                    }
+                ]
+            }
+        }
+        
+        # Agrega Email solo si existe
+        if candidate.get("Email"):
+            properties["Email"] = {
+                "email": candidate.get("Email")
+            }
+        
+        # Agrega Teléfono solo si existe
+        if candidate.get("Teléfono"):
+            properties["Teléfono"] = {
+                "phone_number": candidate.get("Teléfono")
+            }
+        
+        # Agrega Sector
+        if candidate.get("Sector"):
+            properties["Sector"] = {
+                "select": {
+                    "name": candidate.get("Sector", "Otro")
+                }
+            }
+        
+        # Agrega Notas
+        if candidate.get("Notas"):
+            properties["Notas"] = {
+                "rich_text": [
+                    {
+                        "type": "text",
+                        "text": {
+                            "content": candidate.get("Notas", "")
+                        }
+                    }
+                ]
+            }
+        
+        payload = {
+            "parent": {
+                "database_id": NOTION_DATABASE_ID
+            },
+            "properties": properties
+        }
+        
         response = requests.post(
             "https://api.notion.com/v1/pages",
             headers=headers,
@@ -279,7 +307,7 @@ def create_notion_candidate(candidate: Dict) -> bool:
         if response.status_code == 200:
             return True
         else:
-            print(f"    ERROR Notion: {response.status_code}")
+            print(f"    ERROR Notion: {response.status_code} - {response.text[:150]}")
             return False
     except Exception as e:
         print(f"    ERROR al crear en Notion: {str(e)}")

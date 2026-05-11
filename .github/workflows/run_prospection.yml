@@ -43,7 +43,7 @@ jobs:
           HUBSPOT_API_KEY: ${{ secrets.HUBSPOT_API_KEY }}
           MODE: search
         run: |
-          python prospection_agent_v4.0.py
+          run: python prospection_agent_v4.0.py
       
       - name: Ejecutar PROSPECCIÓN_AGENT (ENVÍO)
         if: steps.mode.outputs.mode == 'send'
@@ -52,7 +52,7 @@ jobs:
           HUBSPOT_API_KEY: ${{ secrets.HUBSPOT_API_KEY }}
           MODE: send
         run: |
-          python prospection_agent_v4.0.py
+          run: python prospection_agent_v4.0.py
       
       - name: Notificar resultado
         if: always()

@@ -2,59 +2,39 @@ name: PROSPECCIÓN_AGENT - Lunes Búsqueda y Envío
 
 on:
   schedule:
-    # Lunes 6:30 am (búsqueda)
-    - cron: '30 6 * * 1'
-    # Lunes 8:00 pm (envío a HubSpot)
-    - cron: '0 20 * * 1'
+    - cron: '30 12 * * 1'   # Lunes 6:30 AM CST = 12:30 PM UTC
+    - cron: '0 2 * * 2'     # Lunes 8:00 PM CST = 2:00 AM martes UTC
   workflow_dispatch:
 
 jobs:
   prospection:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout codigo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       
-      - name: Configurar Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       
-      - name: Instalar dependencias
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests beautifulsoup4 lxml
       
-      - name: Detectar modo de ejecución
+      - name: Determine mode
         id: mode
         run: |
           HOUR=$(date -u +%H)
-          if [ "$HOUR" = "06" ]; then
+          if [ "$HOUR" = "12" ]; then
             echo "mode=search" >> $GITHUB_OUTPUT
           else
             echo "mode=send" >> $GITHUB_OUTPUT
           fi
       
-      - name: Ejecutar PROSPECCIÓN_AGENT (BÚSQUEDA)
-        if: steps.mode.outputs.mode == 'search'
+      - name: Run prospection agent
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           HUBSPOT_API_KEY: ${{ secrets.HUBSPOT_API_KEY }}
-          MODE: search
-        run: |
-          run: run: python prospection_agent_v4.1_hybrid.py
-      
-      - name: Ejecutar PROSPECCIÓN_AGENT (ENVÍO)
-        if: steps.mode.outputs.mode == 'send'
-        env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          HUBSPOT_API_KEY: ${{ secrets.HUBSPOT_API_KEY }}
-          MODE: send
-        run: |
-          run: run: python prospection_agent_v4.1_hybrid.py
-      
-      - name: Notificar resultado
-        if: always()
-        run: |
-          echo "Ejecución completada: Modo ${{ steps.mode.outputs.mode }}"
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: python prospection_agent_v4.1_hybrid.py

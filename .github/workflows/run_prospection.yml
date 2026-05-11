@@ -5,6 +5,15 @@ on:
     - cron: '30 12 * * 1'   # Lunes 6:30 AM CST = 12:30 PM UTC
     - cron: '0 2 * * 2'     # Lunes 8:00 PM CST = 2:00 AM martes UTC
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode: search or send'
+        required: true
+        default: 'search'
+        type: choice
+        options:
+          - search
+          - send
 
 jobs:
   prospection:
@@ -25,11 +34,15 @@ jobs:
       - name: Determine mode
         id: mode
         run: |
-          HOUR=$(date -u +%H)
-          if [ "$HOUR" = "12" ]; then
-            echo "mode=search" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ github.event.inputs.mode }}" >> $GITHUB_OUTPUT
           else
-            echo "mode=send" >> $GITHUB_OUTPUT
+            HOUR=$(date -u +%H)
+            if [ "$HOUR" = "12" ]; then
+              echo "mode=search" >> $GITHUB_OUTPUT
+            else
+              echo "mode=send" >> $GITHUB_OUTPUT
+            fi
           fi
       
       - name: Run prospection agent

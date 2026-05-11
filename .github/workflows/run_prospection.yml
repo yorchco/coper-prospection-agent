@@ -1,8 +1,11 @@
-name: PROSPECCIÓN_AGENT - Martes 6:30 am
+name: PROSPECCIÓN_AGENT - Lunes Búsqueda y Envío
 
 on:
   schedule:
-    - cron: '30 6 * * 2'
+    # Lunes 6:30 am (búsqueda)
+    - cron: '30 6 * * 1'
+    # Lunes 8:00 pm (envío a HubSpot)
+    - cron: '0 20 * * 1'
   workflow_dispatch:
 
 jobs:
@@ -23,14 +26,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: Ejecutar PROSPECCIÓN_AGENT v4.0
+      - name: Detectar modo de ejecución
+        id: mode
+        run: |
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" = "06" ]; then
+            echo "mode=search" >> $GITHUB_OUTPUT
+          else
+            echo "mode=send" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Ejecutar PROSPECCIÓN_AGENT (BÚSQUEDA)
+        if: steps.mode.outputs.mode == 'search'
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           HUBSPOT_API_KEY: ${{ secrets.HUBSPOT_API_KEY }}
+          MODE: search
+        run: |
+          python prospection_agent_v4.0.py
+      
+      - name: Ejecutar PROSPECCIÓN_AGENT (ENVÍO)
+        if: steps.mode.outputs.mode == 'send'
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          HUBSPOT_API_KEY: ${{ secrets.HUBSPOT_API_KEY }}
+          MODE: send
         run: |
           python prospection_agent_v4.0.py
       
       - name: Notificar resultado
         if: always()
         run: |
-          echo "Ejecución completada"
+          echo "Ejecución completada: Modo ${{ steps.mode.outputs.mode }}"
